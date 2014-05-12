@@ -56,6 +56,11 @@ namespace Aardwolf
 
         public void Run(params string[] uriPrefixes)
         {
+            RunAsync(CancellationToken.None, uriPrefixes).Wait();
+        }
+
+        public Task RunAsync(CancellationToken cancelToken, params string[] uriPrefixes)
+        {
             // Establish a host-handler context:
             _hostContext = new HostContext(this, _handler);
 
@@ -65,7 +70,7 @@ namespace Aardwolf
             foreach (var prefix in uriPrefixes)
                 _listener.Prefixes.Add(prefix);
 
-            Task.Run(async () =>
+            return Task.Run(async () =>
             {
                 // Configure the handler:
                 if (_configValues != null)
@@ -102,21 +107,33 @@ namespace Aardwolf
                 // Accept connections:
                 // Higher values mean more connections can be maintained yet at a much slower average response time; fewer connections will be rejected.
                 // Lower values mean less connections can be maintained yet at a much faster average response time; more connections will be rejected.
-                var sem = new Semaphore(_accepts, _accepts);
+                var sem = new SemaphoreSlim(_accepts, _accepts);
 
                 while (true)
                 {
-                    sem.WaitOne();
-
-#pragma warning disable 4014
-                    _listener.GetContextAsync().ContinueWith(async (t) =>
+                    try
                     {
+                        await sem.WaitAsync(cancelToken);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        break;
+                    }
+                    
+#pragma warning disable 4014
+                    var listenCtx = _listener.GetContextAsync();
+                    listenCtx.ContinueWith(async t =>
+                    {
+                        if (t.Exception != null)
+                        {
+                            sem.Release();
+                            return;
+                        }
+
                         string errMessage;
 
                         try
                         {
-                            sem.Release();
-
                             var ctx = await t;
                             await ProcessListenerContext(ctx, this);
                             return;
@@ -125,12 +142,22 @@ namespace Aardwolf
                         {
                             errMessage = ex.ToString();
                         }
+                        finally
+                        {
+                            sem.Release();
+                        }
 
                         await Console.Error.WriteLineAsync(errMessage);
                     });
 #pragma warning restore 4014
                 }
-            }).Wait();
+
+                _listener.Stop();
+
+                // Wait for all tasks to complete
+                for (var i = 0; i < _accepts; i++)
+                    await sem.WaitAsync(CancellationToken.None);
+            });
         }
 
         static async Task ProcessListenerContext(HttpListenerContext listenerContext, HttpAsyncHost host)

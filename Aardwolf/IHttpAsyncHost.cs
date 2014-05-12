@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Aardwolf
@@ -18,5 +19,12 @@ namespace Aardwolf
         /// </summary>
         /// <param name="uriPrefixes"></param>
         void Run(params string[] uriPrefixes);
+
+        /// <summary>
+        /// Run the server host and return task.
+        /// </summary>
+        /// <param name="cancelToken"></param>
+        /// <param name="uriPrefixes"></param>
+        Task RunAsync(CancellationToken cancelToken, params string[] uriPrefixes);
     }
 }
