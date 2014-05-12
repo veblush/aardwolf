@@ -5,9 +5,6 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
-
 #pragma warning disable 1998
 
 namespace Aardwolf
@@ -28,11 +25,13 @@ namespace Aardwolf
             context.Response.ContentType = "application/json; charset=utf-8";
             //context.Response.ContentEncoding = UTF8.WithoutBOM;
 
+            var sb = new StringBuilder(0x400);
+            using (var textWriter = new StringWriter(sb))
+                Json.Serializer.Serialize(textWriter, _value);
+
             using (context.Response.OutputStream)
-            {
-                var tw = new StreamWriter(context.Response.OutputStream, UTF8.WithoutBOM);
-                Json.Serializer.Serialize(tw, _value);
-            }
+            using (var tw = new StreamWriter(context.Response.OutputStream, UTF8.WithoutBOM, 65536, true))
+                await tw.WriteAsync(sb.ToString());
         }
     }
 }
