@@ -12,6 +12,7 @@ namespace Aardwolf
     {
         public class RequestContext
         {
+            public IHttpRequestContext Request;
             public String HttpMethod;
             public Uri Url;
             public UriTemplateMatch UrlMatch;
@@ -51,6 +52,7 @@ namespace Aardwolf
 
                 var q = new RequestContext
                 {
+                    Request = request,
                     HttpMethod = request.Request.HttpMethod,
                     Url = request.Request.Url,
                     UrlMatch = uriMatch,
